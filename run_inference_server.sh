@@ -13,7 +13,10 @@
 # All optional env vars:
 #   MODEL_PATH       absolute checkpoint path (overrides RUN_NAME / CHECKPOINT_STEP)
 #   EMBODIMENT_TAG   default: new_embodiment
-#   HOST             default: 0.0.0.0  (listen on all interfaces)
+#   SERVER_HOST      default: 0.0.0.0  (listen on all interfaces).
+#                    NOTE: do NOT use the env var name `HOST` — conda's
+#                    compiler activation exports HOST=x86_64-conda-linux-gnu
+#                    which would clobber the bind address.
 #   PORT             default: 5555
 #   STRICT           default: 1  (set 0 to disable strict input/output validation)
 #   CONDA_ENV        default: gr00tN17
@@ -73,7 +76,16 @@ CHECKPOINT_STEP="${2:-10000}"
 PORT_ARG="${3:-${PORT:-5555}}"
 
 EMBODIMENT_TAG="${EMBODIMENT_TAG:-new_embodiment}"
-HOST="${HOST:-0.0.0.0}"
+# Use SERVER_HOST (not HOST) — conda's compiler activation exports
+# HOST=x86_64-conda-linux-gnu, which would otherwise be used as the bind
+# address. We also defensively reject the conda triplet if SERVER_HOST is unset.
+SERVER_HOST="${SERVER_HOST:-0.0.0.0}"
+case "$SERVER_HOST" in
+    *-conda-linux-gnu*|*-conda-linux-gnueabi*|*-conda-darwin*)
+        echo "Note: ignoring SERVER_HOST='$SERVER_HOST' (looks like a conda compiler triplet); using 0.0.0.0 instead." >&2
+        SERVER_HOST="0.0.0.0"
+        ;;
+esac
 STRICT="${STRICT:-1}"
 
 if [ -n "${MODEL_PATH:-}" ]; then
@@ -92,14 +104,14 @@ echo "========================================="
 echo "  GR00T N1.7 inference server"
 echo "  checkpoint: $CKPT"
 echo "  embodiment: $EMBODIMENT_TAG"
-echo "  host:port:  $HOST:$PORT_ARG"
+echo "  host:port:  $SERVER_HOST:$PORT_ARG"
 echo "  strict:     $STRICT"
 echo "========================================="
 
 SERVER_ARGS=(
     --model-path "$CKPT"
     --embodiment-tag "$EMBODIMENT_TAG"
-    --host "$HOST"
+    --host "$SERVER_HOST"
     --port "$PORT_ARG"
 )
 
