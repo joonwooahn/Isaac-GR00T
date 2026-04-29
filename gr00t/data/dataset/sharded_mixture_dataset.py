@@ -232,13 +232,26 @@ class ShardedMixtureDataset(IterableDataset):
         for emb, stats in all_stats_by_emb.items():
             stats_by_emb[emb] = {}
             for modality in ["state", "action", "relative_action"]:
-                if modality in stats[0]:
-                    modality_stats = [s[modality] for s in stats]
-                    stats_by_emb[emb][modality] = merge_statistics(
-                        per_dataset_stats=modality_stats,
-                        dataset_sampling_weights=weights_by_emb[emb],
-                        is_relative_stats=(modality == "relative_action"),
-                    )
+                # Require every dataset in the embodiment group to expose this
+                # modality. Previously we only checked stats[0], which silently
+                # entered the merge branch with shape-mismatched/empty entries
+                # for the remaining datasets and raised KeyError deep inside
+                # merge_statistics (e.g. KeyError: 'left_arm_joints' when one
+                # dataset had a populated `relative_action` cache and another
+                # only an empty `{}` placeholder).
+                if not all(modality in s for s in stats):
+                    continue
+                # `relative_action` is optional and may legitimately be absent
+                # for absolute-only mixtures. Skip if any dataset has only an
+                # empty placeholder — same reasoning as above.
+                if modality == "relative_action" and not all(s[modality] for s in stats):
+                    continue
+                modality_stats = [s[modality] for s in stats]
+                stats_by_emb[emb][modality] = merge_statistics(
+                    per_dataset_stats=modality_stats,
+                    dataset_sampling_weights=weights_by_emb[emb],
+                    is_relative_stats=(modality == "relative_action"),
+                )
 
         # Configure processor and datasets with merged statistics
         self.global_stats = stats_by_emb

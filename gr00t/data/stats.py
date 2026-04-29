@@ -297,6 +297,14 @@ def generate_rel_stats(dataset_path: Path | str, embodiment_tag: EmbodimentTag) 
             continue
         print(f"Generating relative stats for {dataset_path} {embodiment_tag} {action_key}")
         stats[action_key] = calculate_stats_for_key(dataset_path, embodiment_tag, action_key)
+    # Don't pollute the cache with an empty `{}`. This happens when every action
+    # config is ABSOLUTE (so action_keys is empty) and there is no pre-existing
+    # cache to read. An empty placeholder would later be loaded as
+    # stats["relative_action"] = {} and break ShardedMixtureDataset.merge_statistics
+    # when datasets in the same mixture have inconsistent (populated vs empty)
+    # caches. See sharded_mixture_dataset.py:merge_statistics.
+    if not stats:
+        return
     write_path = resolve_rel_stats_write_path(dataset_path)
     with open(write_path, "w") as f:
         json.dump(to_json_serializable(dict(stats)), f, indent=4)

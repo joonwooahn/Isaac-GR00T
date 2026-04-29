@@ -194,7 +194,13 @@ class LeRobotEpisodeLoader:
                 relative_stats_path = cached
         if relative_stats_path.exists():
             with open(relative_stats_path, "r") as f:
-                self.stats["relative_action"] = json.load(f)
+                rel_stats = json.load(f)
+            # Defensively ignore empty placeholders — a stale `{}` cache file
+            # (e.g. left over from an aborted run, or written by absolute-only
+            # training where there are no RELATIVE action keys) would propagate
+            # `relative_action: {}` and break merging across mixed datasets.
+            if rel_stats:
+                self.stats["relative_action"] = rel_stats
 
         # Extract key configuration parameters
         self.feature_config = self.info_meta.get("features", {})
