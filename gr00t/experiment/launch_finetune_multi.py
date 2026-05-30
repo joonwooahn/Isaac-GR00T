@@ -102,6 +102,12 @@ class MultiFinetuneConfig:
     save_only_model: bool = False
     skip_weight_loading: bool = False
 
+    # --- Action horizon (chunk length) ---
+    action_horizon: Optional[int] = None
+    """Override action chunk length (number of future action timesteps the model predicts).
+    When set, overrides both model.action_horizon and the modality config's action delta_indices.
+    Default (None) keeps the model default (40) and whatever the modality config declares."""
+
     # --- Memory knobs (helpful for single-GPU / OOM mitigation) ---
     gradient_checkpointing: bool = False
     """Recompute activations during backward to trade compute for memory. Big win on 1 GPU."""
@@ -331,6 +337,16 @@ def main() -> None:
     config.model.model_name = "nvidia/Cosmos-Reason2-2B"
     config.model.backbone_trainable_params_fp32 = True
     config.model.use_relative_action = (ft.action_representation == "relative")
+
+    # Override action horizon (chunk length) if requested
+    if ft.action_horizon is not None:
+        config.model.action_horizon = ft.action_horizon
+        from gr00t.configs.data.embodiment_configs import MODALITY_CONFIGS
+
+        for tag, mcfg in MODALITY_CONFIGS.items():
+            if "action" in mcfg:
+                mcfg["action"].delta_indices = list(range(ft.action_horizon))
+        print(f"[multi_finetune] action_horizon overridden to {ft.action_horizon}")
 
     # Mirror launch_finetune.py: training overrides
     config.training.experiment_name = ft.experiment_name
